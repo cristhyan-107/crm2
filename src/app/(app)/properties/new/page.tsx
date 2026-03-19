@@ -25,11 +25,11 @@ export default function NewPropertyPage() {
       user_id: user.id,
       title: form.get('title') as string,
       code: 'AUTO',
-      type: form.get('type') as string,
-      purpose: form.get('purpose') as string,
-      price: parseFloat(form.get('price') as string),
-      city: form.get('city') as string,
-      neighborhood: form.get('neighborhood') as string,
+      type: (form.get('type') as string) || 'house',
+      purpose: (form.get('purpose') as string) || 'sale',
+      price: parseFloat(form.get('price') as string) || 0,
+      city: (form.get('city') as string) || '',
+      neighborhood: (form.get('neighborhood') as string) || '',
       state: (form.get('state') as string) || null,
       address: (form.get('address') as string) || null,
       bedrooms: parseInt(form.get('bedrooms') as string) || 0,
@@ -73,8 +73,8 @@ export default function NewPropertyPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-300">Tipo *</label>
-            <select name="type" required
+            <label className="text-sm font-medium text-gray-300">Tipo</label>
+            <select name="type"
               className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all">
               <option value="house" className="bg-[#0a0f1c]">Casa</option>
               <option value="apartment" className="bg-[#0a0f1c]">Apartamento</option>
@@ -85,8 +85,8 @@ export default function NewPropertyPage() {
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-300">Finalidade *</label>
-            <select name="purpose" required
+            <label className="text-sm font-medium text-gray-300">Finalidade</label>
+            <select name="purpose"
               className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all">
               <option value="sale" className="bg-[#0a0f1c]">Venda</option>
               <option value="rent" className="bg-[#0a0f1c]">Aluguel</option>
@@ -94,21 +94,21 @@ export default function NewPropertyPage() {
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-300">Preço (R$) *</label>
-            <input name="price" type="number" step="0.01" required placeholder="500000"
+            <label className="text-sm font-medium text-gray-300">Preço (R$)</label>
+            <input name="price" type="number" step="0.01" placeholder="500000"
               className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-300">Cidade *</label>
-            <input name="city" required placeholder="São Paulo"
+            <label className="text-sm font-medium text-gray-300">Cidade</label>
+            <input name="city" placeholder="São Paulo"
               className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-300">Bairro *</label>
-            <input name="neighborhood" required placeholder="Copacabana"
+            <label className="text-sm font-medium text-gray-300">Bairro</label>
+            <input name="neighborhood" placeholder="Copacabana"
               className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all" />
           </div>
           <div className="space-y-1.5">

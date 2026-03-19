@@ -1,7 +1,7 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 import { Building2, Calendar, MapPin, CheckCircle2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
+import { PrintButton } from '@/components/reports/print-button';
 import { ShareButton } from '@/components/reports/share-button';
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
@@ -13,33 +13,14 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 
 export default async function PublicReportPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const cookieStore = await cookies();
   
-  // Create a server client that doesn't strictly need auth for public resources
-  const supabase = createServerClient(
+  // Create an admin client to bypass RLS for public shared reports
+  const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-      },
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const { data: report } = await supabase
+  const { data: report } = await supabaseAdmin
     .from('reports')
     .select('created_at, custom_notes, properties(*)')
     .eq('public_token', token)
@@ -52,18 +33,19 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
   const property = report.properties as any;
 
   return (
-    <div className="min-h-screen bg-[#030816] flex flex-col items-center py-12 px-4 selection:bg-blue-500/30 selection:text-white">
-      <div className="w-full max-w-3xl space-y-8 animate-fade-in">
+    <div className="min-h-screen bg-[#030816] flex flex-col items-center py-12 px-4 selection:bg-blue-500/30 selection:text-white print:bg-white print:py-0">
+      <div className="w-full max-w-3xl space-y-8 animate-fade-in print:space-y-4">
         
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(59,130,246,0.2)]">
+          <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(59,130,246,0.2)] print:border print:border-blue-200">
             <Building2 className="w-8 h-8 text-blue-500" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Relatório de Desempenho</h1>
-          <p className="text-gray-400">Gerado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</p>
-          <div className="pt-4 flex justify-center">
+          <h1 className="text-3xl font-bold text-white tracking-tight print:text-black">Relatório de Desempenho</h1>
+          <p className="text-gray-400 print:text-gray-600">Gerado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</p>
+          <div className="pt-4 flex justify-center gap-3">
             <ShareButton token={token} variant="full" />
+            <PrintButton isPublicRoute={true} variant="full" />
           </div>
         </div>
 

@@ -46,7 +46,7 @@ export function ShareButton({ token, title = 'Relatório de Imóvel', variant = 
     return (
       <button
         onClick={handleShare}
-        className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors print:hidden"
       >
         {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
         {copied ? 'Link Copiado!' : 'Compartilhar Relatório'}
@@ -57,7 +57,7 @@ export function ShareButton({ token, title = 'Relatório de Imóvel', variant = 
   return (
     <button
       onClick={handleShare}
-      className="inline-flex items-center justify-center p-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors border border-white/10"
+      className="inline-flex items-center justify-center p-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors border border-white/10 print:hidden"
       title="Compartilhar ou Copiar Link"
     >
       {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <LinkIcon className="w-4 h-4" />}

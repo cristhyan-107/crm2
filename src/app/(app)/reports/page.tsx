@@ -2,6 +2,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { Plus, FileText, Link as LinkIcon, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { ShareButton } from '@/components/reports/share-button';
+import { PrintButton } from '@/components/reports/print-button';
 
 export const metadata = { title: 'Relatórios - Leilão Ágil' };
 
@@ -68,6 +69,7 @@ export default async function ReportsPage() {
                         <Eye className="w-4 h-4" />
                       </Link>
                       <ShareButton token={report.public_token} />
+                      <PrintButton token={report.public_token} />
                     </td>
                   </tr>
                 ))}

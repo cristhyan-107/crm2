@@ -14,12 +14,15 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 export default async function PublicReportPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseKey) {
+    console.warn('WARNING: SUPABASE_SERVICE_ROLE_KEY is not set. Falling back to ANON key, which may cause 404s due to RLS on the properties table.');
+  }
+
   // Create an admin client to bypass RLS for public shared reports
-  // If the service role key is not defined in Vercel, fallback to anon key to prevent 500 crash
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    supabaseKey
+    supabaseKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   const { data: report } = await supabaseAdmin

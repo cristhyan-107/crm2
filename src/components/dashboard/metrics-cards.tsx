@@ -6,10 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 
 export function MetricsCards() {
   const [metrics, setMetrics] = useState([
-    { label: 'Total de Leads', value: '0', change: '—', changeType: 'neutral' as const, icon: Users, accentColor: '#3b82f6' },
-    { label: 'Visitas Agendadas', value: '0', change: '—', changeType: 'neutral' as const, icon: Calendar, accentColor: '#22c55e' },
-    { label: 'Taxa de Conversão', value: '0%', change: '—', changeType: 'neutral' as const, icon: TrendingUp, accentColor: '#a855f7' },
-    { label: 'Leads Quentes', value: '0', change: '—', changeType: 'neutral' as const, icon: Flame, accentColor: '#ef4444' },
+    { label: 'Total de Leads', value: '0', change: '—', changeType: 'neutral' as 'neutral' | 'positive' | 'warning', icon: Users, accentColor: '#3b82f6' },
+    { label: 'Visitas Agendadas', value: '0', change: '—', changeType: 'neutral' as 'neutral' | 'positive' | 'warning', icon: Calendar, accentColor: '#22c55e' },
+    { label: 'Taxa de Conversão', value: '0%', change: '—', changeType: 'neutral' as 'neutral' | 'positive' | 'warning', icon: TrendingUp, accentColor: '#a855f7' },
+    { label: 'Leads Quentes', value: '0', change: '—', changeType: 'neutral' as 'neutral' | 'positive' | 'warning', icon: Flame, accentColor: '#ef4444' },
   ]);
 
   useEffect(() => {

@@ -34,7 +34,7 @@ export function RecentLeads() {
       .order('created_at', { ascending: false })
       .limit(5)
       .then(({ data }) => {
-        if (data) setLeads(data as Lead[]);
+        if (data) setLeads(data as any as Lead[]);
       });
   }, []);
 

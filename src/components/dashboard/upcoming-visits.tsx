@@ -35,7 +35,7 @@ export function UpcomingVisits() {
       .order('scheduled_time', { ascending: true })
       .limit(5)
       .then(({ data }) => {
-        if (data) setVisits(data as Visit[]);
+        if (data) setVisits(data as any as Visit[]);
       });
   }, []);
 

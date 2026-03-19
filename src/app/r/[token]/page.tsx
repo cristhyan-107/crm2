@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Building2, Calendar, MapPin, CheckCircle2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { PrintButton } from '@/components/reports/print-button';
+import { PdfButton } from '@/components/reports/pdf-button';
 import { ShareButton } from '@/components/reports/share-button';
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
@@ -36,7 +36,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
 
   return (
     <div className="min-h-screen bg-[#030816] flex flex-col items-center py-12 px-4 selection:bg-blue-500/30 selection:text-white print:bg-white print:py-0">
-      <div className="w-full max-w-3xl space-y-8 animate-fade-in print:space-y-4">
+      <div id="report-content" className="w-full max-w-3xl space-y-8 animate-fade-in print:space-y-4">
         
         {/* Header */}
         <div className="text-center space-y-2">
@@ -47,7 +47,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
           <p className="text-gray-400 print:text-gray-600">Gerado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</p>
           <div className="pt-4 flex justify-center gap-3">
             <ShareButton token={token} variant="full" />
-            <PrintButton isPublicRoute={true} variant="full" />
+            <PdfButton filename={`relatorio-${property.title || 'imovel'}`} variant="full" />
           </div>
         </div>
 

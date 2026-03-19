@@ -1,8 +1,7 @@
 import { createServerSupabase } from '@/lib/supabase/server';
-import { Plus, FileText, Link as LinkIcon, Eye } from 'lucide-react';
+import { Plus, FileText, Link as LinkIcon, Eye, FileDown } from 'lucide-react';
 import Link from 'next/link';
 import { ShareButton } from '@/components/reports/share-button';
-import { PrintButton } from '@/components/reports/print-button';
 
 export const metadata = { title: 'Relatórios - Leilão Ágil' };
 
@@ -69,7 +68,14 @@ export default async function ReportsPage() {
                         <Eye className="w-4 h-4" />
                       </Link>
                       <ShareButton token={report.public_token} />
-                      <PrintButton token={report.public_token} />
+                      <Link 
+                        href={`/r/${report.public_token}`} 
+                        target="_blank" 
+                        className="inline-flex items-center justify-center p-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors border border-white/10"
+                        title="Baixar PDF"
+                      >
+                        <FileDown className="w-4 h-4" />
+                      </Link>
                     </td>
                   </tr>
                 ))}

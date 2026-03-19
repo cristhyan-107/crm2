@@ -13,7 +13,7 @@ export default async function SettingsPage() {
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
     profile = data;
   }
 

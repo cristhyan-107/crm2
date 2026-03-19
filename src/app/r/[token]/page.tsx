@@ -24,7 +24,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
     .from('reports')
     .select('created_at, custom_notes, properties(*)')
     .eq('public_token', token)
-    .single();
+    .maybeSingle();
 
   if (!report || !report.properties) {
     notFound();

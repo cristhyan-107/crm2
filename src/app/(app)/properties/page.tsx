@@ -7,9 +7,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function PropertiesPage() {
   const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  
   const { data: properties } = await supabase
     .from('properties')
     .select('*')
+    .eq('user_id', user?.id)
     .order('created_at', { ascending: false });
 
   return (

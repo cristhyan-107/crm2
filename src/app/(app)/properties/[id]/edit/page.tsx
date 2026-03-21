@@ -22,10 +22,17 @@ export default function EditPropertyPage() {
     async function loadProperty() {
       if (!propertyId) return;
       
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      
       const { data, error: fetchError } = await supabase
         .from('properties')
         .select('*')
         .eq('id', propertyId)
+        .eq('user_id', user.id)
         .single();
         
       if (fetchError) {

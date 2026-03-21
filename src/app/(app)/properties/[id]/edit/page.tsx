@@ -14,6 +14,7 @@ export default function EditPropertyPage() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [property, setProperty] = useState<any>(null);
 
@@ -67,12 +68,30 @@ export default function EditPropertyPage() {
     const { error: updateError } = await supabase
       .from('properties')
       .update(updates)
-      .eq('id', propertyId)
-      .eq('user_id', user.id); // Extra security check
+      .eq('id', propertyId);
 
     if (updateError) {
       setError(updateError.message);
       setSaving(false);
+    } else {
+      router.push('/properties');
+      router.refresh();
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm('Tem certeza que deseja excluir este imóvel?')) return;
+    setDeleting(true);
+    setError('');
+    
+    const { error: deleteError } = await supabase
+      .from('properties')
+      .delete()
+      .eq('id', propertyId);
+      
+    if (deleteError) {
+      setError('Erro ao excluir: ' + deleteError.message);
+      setDeleting(false);
     } else {
       router.push('/properties');
       router.refresh();
@@ -218,15 +237,22 @@ export default function EditPropertyPage() {
             className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all resize-none" />
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
-          <Link href="/properties"
-            className="px-4 py-2.5 rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 transition-colors font-medium">
-            Cancelar
-          </Link>
-          <button type="submit" disabled={saving}
-            className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium transition-colors">
-            {saving ? 'Salvando...' : 'Salvar Alterações'}
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-4 pt-2 mt-4 border-t border-white/10 pt-6">
+          <button type="button" onClick={handleDelete} disabled={deleting || saving}
+            className="px-4 py-2.5 rounded-lg text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors font-medium border border-red-500/20 text-center">
+            {deleting ? 'Excluindo...' : 'Excluir Imóvel'}
           </button>
+
+          <div className="flex gap-3 justify-end">
+            <Link href="/properties"
+              className="px-4 py-2.5 rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 transition-colors font-medium">
+              Cancelar
+            </Link>
+            <button type="submit" disabled={saving || deleting}
+              className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium transition-colors">
+              {saving ? 'Salvando...' : 'Salvar Alterações'}
+            </button>
+          </div>
         </div>
       </form>
     </div>

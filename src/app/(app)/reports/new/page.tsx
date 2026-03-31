@@ -139,43 +139,49 @@ export default function NewReportPage() {
     const customNotes = form.get('custom_notes') as string;
     
     try {
+      let combinedReportContent = '';
+
       for (const propId of selectedPropertyIds) {
         const stats = statsMap[propId];
         if (!stats) continue;
         
         const prop = properties.find(p => p.id === propId);
+        if (!prop) continue;
         
         const statusDetails = Object.entries(stats.statusCounts)
           .filter(([_, count]) => count > 0)
           .map(([status, count]) => `- ${statusLabels[status] || status}: ${count}`)
           .join('\n');
 
-        const reportContent = `
-=== RESUMO DO IMÓVEL ===
+        const singleReportContent = `
+=== RESUMO DO IMÓVEL: ${prop.code} - ${prop.title} ===
 Leads totais captados: ${stats.leads}
 Visitas agendadas: ${stats.visits}
 
 === FUNIL DOS LEADS ===
 ${statusDetails || 'Nenhum lead registrado.'}
 
-Gerou venda? ${stats.generatedSale ? 'SIM' : 'NÃO'}
+Gerou venda? ${stats.generatedSale ? 'SIM' : 'NÃO'}`.trim();
 
+        combinedReportContent += singleReportContent + '\n\n';
+
+        if (stats.generatedSale && prop.status !== 'sold') {
+          await supabase.from('properties').update({ status: 'sold' }).eq('id', propId);
+        }
+      }
+
+      combinedReportContent += `
 === INFORMAÇÕES EXTRAS ===
 ${customNotes || 'Nenhuma informação extra fornecida.'}
 `.trim();
 
-        if (stats.generatedSale && prop && prop.status !== 'sold') {
-          await supabase.from('properties').update({ status: 'sold' }).eq('id', propId);
-        }
+      const { error: insertError } = await supabase.from('reports').insert({
+        user_id: user.id,
+        property_id: selectedPropertyIds.length === 1 ? selectedPropertyIds[0] : null,
+        custom_notes: combinedReportContent.trim(),
+      });
 
-        const { error: insertError } = await supabase.from('reports').insert({
-          user_id: user.id,
-          property_id: propId,
-          custom_notes: reportContent,
-        });
-
-        if (insertError) throw insertError;
-      }
+      if (insertError) throw insertError;
 
       router.push('/reports');
       router.refresh();

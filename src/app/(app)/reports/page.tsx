@@ -46,7 +46,7 @@ export default async function ReportsPage() {
                     <td className="px-6 py-4 font-medium text-gray-200">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-blue-500" />
-                        {report.properties?.title || 'Relatório sem imóvel'}
+                        {report.properties?.title || 'Múltiplos Imóveis'}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-gray-400">

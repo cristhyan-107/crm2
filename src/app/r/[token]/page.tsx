@@ -31,11 +31,12 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
     .eq('public_token', token)
     .maybeSingle();
 
-  if (!report || !report.properties) {
+  if (!report) {
     notFound();
   }
 
   const property = report.properties as any;
+  const isMultiProperty = !property;
 
   return (
     <div className="min-h-screen bg-[#030816] flex flex-col items-center py-12 px-4 selection:bg-blue-500/30 selection:text-white print:bg-white print:py-0">
@@ -50,64 +51,73 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
           <p className="text-gray-400 print:text-gray-600">Gerado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</p>
           <div className="pt-4 flex justify-center gap-3">
             <ShareButton token={token} variant="full" />
-            <PdfButton filename={`relatorio-${property.title || 'imovel'}`} variant="full" />
+            <PdfButton filename={isMultiProperty ? 'relatorio-multiplo' : `relatorio-${property.title}`} variant="full" />
           </div>
         </div>
 
         {/* Property Card */}
         <div className="bg-[#080d18] border border-white/10 rounded-2xl p-6 sm:p-8 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-medium text-gray-300">
-                  {property.code}
-                </span>
-                {property.status === 'sold' && (
-                  <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Vendido
-                  </span>
-                )}
-              </div>
-              <h2 className="text-2xl font-bold text-white">{property.title}</h2>
-              {property.address && (
-                <div className="flex items-center gap-1.5 text-gray-400 mt-2">
-                  <MapPin className="w-4 h-4" />
-                  <span className="text-sm">{property.address} - {property.neighborhood}, {property.city}</span>
+          {!isMultiProperty ? (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-medium text-gray-300">
+                      {property.code}
+                    </span>
+                    {property.status === 'sold' && (
+                      <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Vendido
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-2xl font-bold text-white">{property.title}</h2>
+                  {property.address && (
+                    <div className="flex items-center gap-1.5 text-gray-400 mt-2">
+                      <MapPin className="w-4 h-4" />
+                      <span className="text-sm">{property.address} - {property.neighborhood}, {property.city}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="text-left sm:text-right">
-              <p className="text-sm text-gray-400">Valor do Imóvel</p>
-              <p className="text-2xl font-bold text-emerald-400">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(property.price)}
-              </p>
-            </div>
-          </div>
+                <div className="text-left sm:text-right">
+                  <p className="text-sm text-gray-400">Valor do Imóvel</p>
+                  <p className="text-2xl font-bold text-emerald-400">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(property.price)}
+                  </p>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-y border-white/5">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Tipo</p>
-              <p className="text-sm font-medium text-gray-200 capitalize">{property.type}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-y border-white/5">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Tipo</p>
+                  <p className="text-sm font-medium text-gray-200 capitalize">{property.type}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Quartos</p>
+                  <p className="text-sm font-medium text-gray-200">{property.bedrooms}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Banheiros</p>
+                  <p className="text-sm font-medium text-gray-200">{property.bathrooms}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Área</p>
+                  <p className="text-sm font-medium text-gray-200">{property.area} m²</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="mb-6 pb-6 border-b border-white/5">
+              <h2 className="text-2xl font-bold text-white mb-2">Relatório de Múltiplos Imóveis</h2>
+              <p className="text-gray-400 text-sm">Este relatório contém informações agregadas de vários imóveis.</p>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Quartos</p>
-              <p className="text-sm font-medium text-gray-200">{property.bedrooms}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Banheiros</p>
-              <p className="text-sm font-medium text-gray-200">{property.bathrooms}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Área</p>
-              <p className="text-sm font-medium text-gray-200">{property.area} m²</p>
-            </div>
-          </div>
+          )}
 
           <div className="mt-6 space-y-4">
             <h3 className="text-lg font-semibold text-white">Notas e Desempenho</h3>
             <div className="p-4 rounded-xl bg-white/5 border border-white/5">
               <pre className="whitespace-pre-wrap font-sans text-sm text-gray-300 leading-relaxed">
-                {report.custom_notes || 'Nenhuma nota adicional adicionada a este relatório.'}
+                {report.custom_notes || 'Nenhuma nota adicionada a este relatório.'}
               </pre>
             </div>
           </div>

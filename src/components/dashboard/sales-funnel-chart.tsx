@@ -8,12 +8,14 @@ import {
 import { createClient } from '@/lib/supabase/client';
 
 const columns = [
-  { id: 'new', name: 'Novo Lead', fill: '#6366f1' },
-  { id: 'contacted', name: 'Em Contato', fill: '#8b5cf6' },
-  { id: 'visited', name: 'Visitou', fill: '#f59e0b' },
-  { id: 'proposal', name: 'Proposta', fill: '#3b82f6' },
-  { id: 'negotiating', name: 'Negociando', fill: '#f97316' },
-  { id: 'closed', name: 'Fechado', fill: '#22c55e' },
+  { id: 'new', name: 'Novo', fill: '#3b82f6' },
+  { id: 'contacted', name: 'Em Contato', fill: '#a855f7' },
+  { id: 'credit_approved', name: 'Com Crédito', fill: '#22c55e' },
+  { id: 'scheduled_visit', name: 'Agendou Visita', fill: '#6366f1' },
+  { id: 'visited', name: 'Visitou', fill: '#f97316' },
+  { id: 'proposal', name: 'Proposta', fill: '#eab308' },
+  { id: 'negotiating', name: 'Negociando', fill: '#ec4899' },
+  { id: 'closed', name: 'Fechado', fill: '#14b8a6' },
 ];
 
 export function SalesFunnelChart() {

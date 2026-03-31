@@ -8,6 +8,34 @@ import Link from 'next/link';
 
 type Property = { id: string; title: string; code: string; status: string };
 
+type StatusCounts = {
+  new: number;
+  contacted: number;
+  credit_approved: number;
+  scheduled_visit: number;
+  visited: number;
+  proposal: number;
+  negotiating: number;
+  [key: string]: number;
+};
+
+type PropertyStats = {
+  leads: number;
+  visits: number;
+  statusCounts: StatusCounts;
+  generatedSale: boolean;
+};
+
+const statusLabels: Record<string, string> = {
+  new: 'Novos',
+  contacted: 'Em Contato',
+  credit_approved: 'Com Crédito',
+  scheduled_visit: 'Agendou Visita',
+  visited: 'Visitou',
+  proposal: 'Proposta',
+  negotiating: 'Negociando',
+};
+
 export default function NewReportPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -15,9 +43,8 @@ export default function NewReportPage() {
   const [error, setError] = useState('');
   const [properties, setProperties] = useState<Property[]>([]);
   
-  const [selectedPropertyId, setSelectedPropertyId] = useState('');
-  const [stats, setStats] = useState({ leads: 0, visits: 0 });
-  const [generatedSale, setGeneratedSale] = useState(false);
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+  const [statsMap, setStatsMap] = useState<Record<string, PropertyStats>>({});
   const [fetchingStats, setFetchingStats] = useState(false);
 
   useEffect(() => {
@@ -30,31 +57,48 @@ export default function NewReportPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedPropertyId) {
-      setStats({ leads: 0, visits: 0 });
-      setGeneratedSale(false);
+    if (selectedPropertyIds.length === 0) {
+      setStatsMap({});
       return;
     }
 
-    const fetchStats = async () => {
+    const fetchAllStats = async () => {
       setFetchingStats(true);
       try {
-        const prop = properties.find(p => p.id === selectedPropertyId);
-        if (prop && prop.status === 'sold') {
-          setGeneratedSale(true);
-        } else {
-          setGeneratedSale(false);
-        }
-
-        const [leadsRes, visitsRes] = await Promise.all([
-          supabase.from('leads').select('id', { count: 'exact', head: true }).eq('property_id', selectedPropertyId),
-          supabase.from('visits').select('id', { count: 'exact', head: true }).eq('property_id', selectedPropertyId)
-        ]);
+        const newStatsMap: Record<string, PropertyStats> = {};
         
-        setStats({
-          leads: leadsRes.count || 0,
-          visits: visitsRes.count || 0
-        });
+        for (const propId of selectedPropertyIds) {
+          const prop = properties.find(p => p.id === propId);
+          const generatedSale = prop ? prop.status === 'sold' : false;
+
+          const [leadsRes, visitsRes] = await Promise.all([
+            supabase.from('leads').select('id, status').eq('property_id', propId),
+            supabase.from('visits').select('id', { count: 'exact', head: true }).eq('property_id', propId)
+          ]);
+          
+          const leads = leadsRes.data || [];
+          const statusCounts: StatusCounts = {
+            new: 0, contacted: 0, credit_approved: 0, scheduled_visit: 0, 
+            visited: 0, proposal: 0, negotiating: 0
+          };
+          
+          leads.forEach(lead => {
+            if (lead.status in statusCounts) {
+              statusCounts[lead.status]++;
+            } else {
+              statusCounts[lead.status] = 1;
+            }
+          });
+
+          newStatsMap[propId] = {
+            leads: leads.length,
+            visits: visitsRes.count || 0,
+            statusCounts,
+            generatedSale
+          };
+        }
+        
+        setStatsMap(newStatsMap);
       } catch (err) {
         console.error('Error fetching stats:', err);
       } finally {
@@ -62,13 +106,26 @@ export default function NewReportPage() {
       }
     };
 
-    fetchStats();
-  }, [selectedPropertyId, properties]);
+    fetchAllStats();
+  }, [selectedPropertyIds, properties]);
+
+  const togglePropertySelection = (propId: string) => {
+    setSelectedPropertyIds(prev => 
+      prev.includes(propId) ? prev.filter(id => id !== propId) : [...prev, propId]
+    );
+  };
+
+  const updateGeneratedSale = (propId: string, value: boolean) => {
+    setStatsMap(prev => ({
+      ...prev,
+      [propId]: { ...prev[propId], generatedSale: value }
+    }));
+  };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!selectedPropertyId) {
-      setError('Selecione um imóvel para gerar o relatório.');
+    if (selectedPropertyIds.length === 0) {
+      setError('Selecione pelo menos um imóvel para gerar o relatório.');
       return;
     }
 
@@ -81,49 +138,62 @@ export default function NewReportPage() {
 
     const customNotes = form.get('custom_notes') as string;
     
-    // Format the final report notes containing the stats and sale status
-    const reportContent = `
+    try {
+      for (const propId of selectedPropertyIds) {
+        const stats = statsMap[propId];
+        if (!stats) continue;
+        
+        const prop = properties.find(p => p.id === propId);
+        
+        const statusDetails = Object.entries(stats.statusCounts)
+          .filter(([_, count]) => count > 0)
+          .map(([status, count]) => `- ${statusLabels[status] || status}: ${count}`)
+          .join('\n');
+
+        const reportContent = `
 === RESUMO DO IMÓVEL ===
-Leads captados: ${stats.leads}
+Leads totais captados: ${stats.leads}
 Visitas agendadas: ${stats.visits}
-Gerou venda? ${generatedSale ? 'SIM' : 'NÃO'}
+
+=== FUNIL DOS LEADS ===
+${statusDetails || 'Nenhum lead registrado.'}
+
+Gerou venda? ${stats.generatedSale ? 'SIM' : 'NÃO'}
 
 === INFORMAÇÕES EXTRAS ===
 ${customNotes || 'Nenhuma informação extra fornecida.'}
 `.trim();
 
-    // If marked as sold, update the property status to sold
-    if (generatedSale) {
-      const prop = properties.find(p => p.id === selectedPropertyId);
-      if (prop && prop.status !== 'sold') {
-        await supabase.from('properties').update({ status: 'sold' }).eq('id', selectedPropertyId);
+        if (stats.generatedSale && prop && prop.status !== 'sold') {
+          await supabase.from('properties').update({ status: 'sold' }).eq('id', propId);
+        }
+
+        const { error: insertError } = await supabase.from('reports').insert({
+          user_id: user.id,
+          property_id: propId,
+          custom_notes: reportContent,
+        });
+
+        if (insertError) throw insertError;
       }
-    }
 
-    const { error: insertError } = await supabase.from('reports').insert({
-      user_id: user.id,
-      property_id: selectedPropertyId,
-      custom_notes: reportContent,
-    });
-
-    if (insertError) {
-      setError(insertError.message);
-      setLoading(false);
-    } else {
       router.push('/reports');
       router.refresh();
+    } catch (err: any) {
+      setError(err.message || 'Erro ao gerar relatórios');
+      setLoading(false);
     }
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center gap-3">
         <Link href="/reports" className="p-2 rounded-lg hover:bg-white/5 transition-colors">
           <ArrowLeft className="w-5 h-5 text-gray-400" />
         </Link>
         <div>
           <h2 className="text-2xl font-bold text-white tracking-tight">Gerar Relatório</h2>
-          <p className="text-sm text-gray-400 mt-0.5">Relatório de desempenho e atividades do imóvel</p>
+          <p className="text-sm text-gray-400 mt-0.5">Relatórios de desempenho e atividades dos imóveis</p>
         </div>
       </div>
 
@@ -132,84 +202,110 @@ ${customNotes || 'Nenhuma informação extra fornecida.'}
           <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{error}</div>
         )}
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-300">Selecione o Imóvel *</label>
-          <select 
-            required
-            value={selectedPropertyId}
-            onChange={(e) => setSelectedPropertyId(e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all"
-          >
-            <option value="" className="bg-[#0a0f1c]">Selecione um imóvel...</option>
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-gray-300">Selecione os Imóveis *</label>
+          <div className="max-h-64 overflow-y-auto space-y-2 border border-white/10 rounded-lg p-2 bg-[#0a0f1c]">
             {properties.map(p => (
-              <option key={p.id} value={p.id} className="bg-[#0a0f1c]">
-                {p.code} — {p.title} {p.status === 'sold' ? '(Vendido)' : ''}
-              </option>
+              <div key={p.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-md transition-colors cursor-pointer" onClick={() => togglePropertySelection(p.id)}>
+                <input 
+                  type="checkbox" 
+                  checked={selectedPropertyIds.includes(p.id)}
+                  onChange={() => {}}
+                  className="w-4 h-4 rounded border-white/20 bg-transparent text-blue-500 focus:ring-blue-500/40"
+                />
+                <span className="text-sm text-gray-300">
+                  {p.code} — {p.title} {p.status === 'sold' ? '(Vendido)' : ''}
+                </span>
+              </div>
             ))}
-          </select>
+            {properties.length === 0 && (
+              <p className="text-sm text-gray-500 p-2 text-center">Nenhum imóvel disponível</p>
+            )}
+          </div>
         </div>
 
-        {selectedPropertyId && (
-          <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-4">
-            <h3 className="text-sm font-medium text-blue-400 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" /> Resumo do Imóvel
+        {selectedPropertyIds.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-blue-400 flex items-center gap-2 border-b border-white/10 pb-2">
+              <BarChart3 className="w-4 h-4" /> Resumo dos Imóveis Selecionados ({selectedPropertyIds.length})
             </h3>
             
             {fetchingStats ? (
               <div className="text-sm text-gray-500 animate-pulse">Calculando estatísticas...</div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-3 bg-[#0a0f1c] p-3 rounded-lg border border-white/5">
-                  <div className="w-8 h-8 rounded-md bg-blue-500/10 flex items-center justify-center">
-                    <Users className="w-4 h-4 text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Leads captados</p>
-                    <p className="text-lg font-semibold text-white">{stats.leads}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3 bg-[#0a0f1c] p-3 rounded-lg border border-white/5">
-                  <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
-                    <Calendar className="w-4 h-4 text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Visitas agendadas</p>
-                    <p className="text-lg font-semibold text-white">{stats.visits}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {selectedPropertyIds.map(propId => {
+                  const prop = properties.find(p => p.id === propId);
+                  const stats = statsMap[propId];
+                  if (!prop || !stats) return null;
 
-            <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className={`w-4 h-4 ${generatedSale ? 'text-emerald-400' : 'text-gray-500'}`} />
-                <span className="text-sm text-gray-300">Este imóvel gerou venda?</span>
+                  return (
+                    <div key={propId} className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-4">
+                      <h4 className="text-sm font-medium text-white truncate" title={prop.title}>{prop.code} - {prop.title}</h4>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex items-center gap-2 bg-[#0a0f1c] p-2 rounded-lg border border-white/5">
+                          <Users className="w-4 h-4 text-blue-400" />
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase">Leads</p>
+                            <p className="text-sm font-semibold text-white">{stats.leads}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 bg-[#0a0f1c] p-2 rounded-lg border border-white/5">
+                          <Calendar className="w-4 h-4 text-emerald-400" />
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase">Visitas</p>
+                            <p className="text-sm font-semibold text-white">{stats.visits}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-gray-500 uppercase font-medium">Funil ({stats.leads} total)</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(stats.statusCounts).map(([status, count]) => {
+                            if (count === 0) return null;
+                            return (
+                              <span key={status} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/5 text-gray-300 border border-white/10">
+                                {statusLabels[status] || status}: <span className="ml-1 text-white">{count}</span>
+                              </span>
+                            );
+                          })}
+                          {Object.values(stats.statusCounts).every(v => v === 0) && (
+                            <span className="text-xs text-gray-500">Nenhum lead registrado</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className={`w-3 h-3 ${stats.generatedSale ? 'text-emerald-400' : 'text-gray-500'}`} />
+                          <span className="text-xs text-gray-300">Gerou venda?</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={stats.generatedSale}
+                            onChange={(e) => updateGeneratedSale(propId, e.target.checked)}
+                          />
+                          <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={generatedSale}
-                  onChange={(e) => setGeneratedSale(e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-              </label>
-            </div>
-            {generatedSale && (
-              <p className="text-xs text-emerald-400/80 mt-2">
-                O status do imóvel será automaticamente atualizado para "Vendido".
-              </p>
             )}
           </div>
         )}
 
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-300">Informações Extras</label>
+          <label className="text-sm font-medium text-gray-300">Informações Extras (Aplicado a todos)</label>
           <textarea 
             name="custom_notes" 
             rows={4} 
-            placeholder="Adicione informações adicionais que deseja incluir no relatório..."
+            placeholder="Adicione informações adicionais que deseja incluir nos relatórios..."
             className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all resize-none" 
           />
         </div>
@@ -219,9 +315,9 @@ ${customNotes || 'Nenhuma informação extra fornecida.'}
             className="px-4 py-2.5 rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 transition-colors font-medium">
             Cancelar
           </Link>
-          <button type="submit" disabled={loading}
+          <button type="submit" disabled={loading || selectedPropertyIds.length === 0}
             className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium transition-colors">
-            {loading ? 'Gerando...' : 'Gerar Relatório'}
+            {loading ? 'Gerando...' : `Gerar Relatório${selectedPropertyIds.length > 1 ? 's' : ''}`}
           </button>
         </div>
       </form>

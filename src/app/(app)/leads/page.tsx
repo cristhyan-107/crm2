@@ -60,7 +60,17 @@ export default async function LeadsPage() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col items-start gap-1">
                         <span className="text-xs bg-white/5 text-gray-300 px-2 py-0.5 rounded-md border border-white/10">
-                          {lead.status.charAt(0).toUpperCase() + lead.status.slice(1)}
+                          {{
+                            new: 'Novo',
+                            contacted: 'Em Contato',
+                            credit_approved: 'Com Crédito',
+                            scheduled_visit: 'Agendou Visita',
+                            visited: 'Visitou',
+                            proposal: 'Proposta',
+                            negotiating: 'Negociando',
+                            closed: 'Fechado',
+                            lost: 'Perdido',
+                          }[lead.status as string] || lead.status}
                         </span>
                         <div className="flex items-center gap-1.5 text-xs">
                           <span className={`w-2 h-2 rounded-full ${

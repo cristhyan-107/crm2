@@ -30,6 +30,7 @@ export default function PipelineBoard({ initialLeads, properties }: PipelineBoar
   const columns = [
     { id: 'new', title: 'Novos', color: 'bg-blue-500' },
     { id: 'contacted', title: 'Em Contato', color: 'bg-purple-500' },
+    { id: 'credit_approved', title: 'Com Crédito', color: 'bg-green-500' },
     { id: 'scheduled_visit', title: 'Agendou Visita', color: 'bg-indigo-500' },
     { id: 'visited', title: 'Visitou', color: 'bg-orange-500' },
     { id: 'proposal', title: 'Proposta', color: 'bg-yellow-500' },

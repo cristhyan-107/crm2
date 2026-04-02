@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building2, Kanban, Calendar,
-  FileText, Settings, X
+  FileText, Settings, X, Smartphone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,6 +18,7 @@ const navigation = [
 ];
 
 const bottomNav = [
+  { name: 'WhatsApp', href: '/settings/whatsapp', icon: Smartphone },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 

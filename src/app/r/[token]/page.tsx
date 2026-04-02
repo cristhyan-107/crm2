@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { Building2, Calendar, MapPin, CheckCircle2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { PdfButton } from '@/components/reports/pdf-button';
 import { ShareButton } from '@/components/reports/share-button';
+import { ReportDashboard } from '@/components/reports/report-dashboard';
+import { ReportSnapshot } from '@/lib/types/reports';
+import { Building2 } from 'lucide-react';
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
   return {
-    title: `Relatório de Imóvel - CRM Leilão Ágil`,
+    title: `Relatório Analítico - Leilão Ágil`,
   };
 }
 
@@ -16,7 +17,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
   
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseKey) {
-    console.warn('WARNING: SUPABASE_SERVICE_ROLE_KEY is not set. Falling back to ANON key, which may cause 404s due to RLS on the properties table.');
+    console.warn('WARNING: SUPABASE_SERVICE_ROLE_KEY is not set. Falling back to ANON key.');
   }
 
   // Create an admin client to bypass RLS for public shared reports
@@ -27,7 +28,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
 
   const { data: report } = await supabaseAdmin
     .from('reports')
-    .select('created_at, custom_notes, properties(*)')
+    .select('*') // Puxa agora o snapshot
     .eq('public_token', token)
     .maybeSingle();
 
@@ -35,98 +36,54 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
     notFound();
   }
 
-  const property = report.properties as any;
-  const isMultiProperty = !property;
+  let snapshot: ReportSnapshot | null = null;
+  const isLegacy = !report.snapshot || Object.keys(report.snapshot).length === 0;
+
+  if (!isLegacy) {
+    snapshot = report.snapshot as ReportSnapshot;
+  }
 
   return (
-    <div className="min-h-screen bg-[#030816] flex flex-col items-center py-12 px-4 selection:bg-blue-500/30 selection:text-white print:bg-white print:py-0">
-      <div id="report-content" className="w-full max-w-3xl space-y-8 animate-fade-in print:space-y-4">
+    <div className="min-h-screen bg-[#030816] print:bg-white flex flex-col items-center py-12 px-4 selection:bg-blue-500/30 selection:text-white pb-24">
+      <div id="report-content" className="w-full max-w-5xl space-y-8 animate-fade-in print:space-y-6">
         
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(59,130,246,0.2)] print:border print:border-blue-200">
-            <Building2 className="w-8 h-8 text-blue-500" />
+        {/* Header Superior Dinâmico */}
+        <div className="flex flex-col md:flex-row items-center justify-between text-center md:text-left gap-6 p-6 md:p-8 bg-white/5 border border-white/10 rounded-2xl print:bg-white print:border-gray-200 print:shadow-sm">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+             <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(59,130,246,0.2)] print:border print:border-blue-200">
+               <Building2 className="w-8 h-8 text-blue-500" />
+             </div>
+             <div>
+                <h1 className="text-3xl font-bold text-white tracking-tight print:text-black">Relatório Estratégico</h1>
+                <p className="text-gray-400 mt-1 print:text-gray-500">
+                  Gerado em {new Date(report.created_at).toLocaleDateString('pt-BR')}
+                </p>
+             </div>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight print:text-black">Relatório de Desempenho</h1>
-          <p className="text-gray-400 print:text-gray-600">Gerado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</p>
-          <div className="pt-4 flex justify-center gap-3">
-            <ShareButton token={token} variant="full" />
-            <PdfButton filename={isMultiProperty ? 'relatorio-multiplo' : `relatorio-${property.title}`} variant="full" />
+          
+          <div className="flex items-center gap-3 print:hidden">
+            <ShareButton token={token} />
+            <PdfButton filename={`relatorio-${token}`} />
           </div>
         </div>
 
-        {/* Property Card */}
-        <div className="bg-[#080d18] border border-white/10 rounded-2xl p-6 sm:p-8 shadow-xl">
-          {!isMultiProperty ? (
-            <>
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-medium text-gray-300">
-                      {property.code}
-                    </span>
-                    {property.status === 'sold' && (
-                      <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-400 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Vendido
-                      </span>
-                    )}
-                  </div>
-                  <h2 className="text-2xl font-bold text-white">{property.title}</h2>
-                  {property.address && (
-                    <div className="flex items-center gap-1.5 text-gray-400 mt-2">
-                      <MapPin className="w-4 h-4" />
-                      <span className="text-sm">{property.address} - {property.neighborhood}, {property.city}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-sm text-gray-400">Valor do Imóvel</p>
-                  <p className="text-2xl font-bold text-emerald-400">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(property.price)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-y border-white/5">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Tipo</p>
-                  <p className="text-sm font-medium text-gray-200 capitalize">{property.type}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Quartos</p>
-                  <p className="text-sm font-medium text-gray-200">{property.bedrooms}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Banheiros</p>
-                  <p className="text-sm font-medium text-gray-200">{property.bathrooms}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Área</p>
-                  <p className="text-sm font-medium text-gray-200">{property.area} m²</p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="mb-6 pb-6 border-b border-white/5">
-              <h2 className="text-2xl font-bold text-white mb-2">Relatório de Múltiplos Imóveis</h2>
-              <p className="text-gray-400 text-sm">Este relatório contém informações agregadas de vários imóveis.</p>
-            </div>
-          )}
-
-          <div className="mt-6 space-y-4">
-            <h3 className="text-lg font-semibold text-white">Notas e Desempenho</h3>
-            <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-              <pre className="whitespace-pre-wrap font-sans text-sm text-gray-300 leading-relaxed">
-                {report.custom_notes || 'Nenhuma nota adicionada a este relatório.'}
+        {/* Renderização condicional: Legacy vs Modern Dashboard */}
+        {isLegacy ? (
+           <div className="bg-[#080d18] border border-white/10 rounded-2xl p-6 sm:p-8 shadow-xl print:bg-white print:border-gray-200 text-white print:text-black">
+              <h2 className="text-2xl font-bold mb-4">Relatório Legado</h2>
+              <pre className="whitespace-pre-wrap font-sans text-sm text-gray-300 leading-relaxed print:text-gray-800">
+                {report.custom_notes || 'Nenhuma nota disponível.'}
               </pre>
-            </div>
-          </div>
-        </div>
+           </div>
+        ) : (
+           <ReportDashboard snapshot={snapshot!} />
+        )}
 
         {/* Footer */}
-        <div className="text-center pt-8">
-          <p className="text-xs text-gray-600">Gerado pelo sistema CRM Leilão Ágil</p>
+        <div className="text-center pt-8 border-t border-white/5 print:border-gray-200 mt-12 print:mt-8">
+          <p className="text-xs text-gray-600 print:text-gray-400 tracking-wider uppercase">Gerado com CRM Leilão Ágil</p>
         </div>
+
       </div>
     </div>
   );

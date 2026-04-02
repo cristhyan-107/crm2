@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SendWhatsAppMessageParams, SendWhatsAppMessageResponse } from './types';
+import { evolutionFetch } from '@/lib/evolution';
 
 export async function sendWhatsAppMessage(
   params: SendWhatsAppMessageParams
@@ -41,12 +42,8 @@ export async function sendWhatsAppMessage(
     }
 
     // 2. Execute Evolution HTTP API request
-    const response = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE_NAME}`, {
+    const data = await evolutionFetch(`/message/sendText/${EVOLUTION_INSTANCE_NAME}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': EVOLUTION_API_KEY,
-      },
       body: JSON.stringify({
         number: phoneNormalized,
         text: params.message,
@@ -56,12 +53,6 @@ export async function sendWhatsAppMessage(
         }
       }),
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.message || data?.error || 'Failed to send WhatsApp message via API.');
-    }
 
     // 3. Status updates after provider confirmation
     // Usually Evolution returns the new real message ID in data.key.id or data.id

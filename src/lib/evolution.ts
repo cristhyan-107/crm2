@@ -1,21 +1,26 @@
+function buildUrl(path: string) {
+  const BASE_URL = process.env.EVOLUTION_API_URL || '';
+  const cleanBase = BASE_URL.replace(/\/+$/, '');
+  const cleanPath = path.replace(/^\/+/, '');
+  return `${cleanBase}/${cleanPath}`;
+}
+
 export async function evolutionFetch(endpoint: string, options?: RequestInit) {
-  const BASE_URL = process.env.EVOLUTION_API_URL;
   const API_KEY = process.env.EVOLUTION_API_KEY;
 
-  if (!BASE_URL || !API_KEY) {
+  if (!process.env.EVOLUTION_API_URL || !API_KEY) {
     throw new Error('Evolution API missing credentials in environment variables.');
   }
 
-  // Ensure endpoint starts with a slash
-  const urlPath = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const finalUrl = buildUrl(endpoint);
 
   console.log(`\n--- EVOLUTION API CALL ---`);
-  console.log(`[REQUEST] ${options?.method || 'GET'} ${urlPath}`);
+  console.log(`[REQUEST] ${options?.method || 'GET'} ${finalUrl}`);
   if (options?.body) {
     console.log(`[PAYLOAD]`, options.body);
   }
 
-  const res = await fetch(`${BASE_URL}${urlPath}`, {
+  const res = await fetch(finalUrl, {
     ...options,
     headers: {
       "Content-Type": "application/json",

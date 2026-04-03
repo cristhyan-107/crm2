@@ -130,10 +130,20 @@ export async function ensureInstanceExists(instanceName: string) {
 }
 
 export async function getEvolutionQRCode(instanceName: string) {
-  const response = await evolutionFetch(`/instance/connect/${instanceName}`, {
-    method: 'GET'
-  });
-  return response; // { base64: "..." }
+  for (let i = 0; i < 5; i++) {
+    const response = await evolutionFetch(`/instance/connect/${instanceName}`, {
+      method: 'GET'
+    });
+    
+    if (response.base64 || response.qrcode) {
+      return response; // Achou o QR Code
+    }
+    
+    // Se response.count === 0, significa que a instância ainda está iniciando
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  throw new Error("QR Code não pôde ser gerado a tempo. Tente novamente.");
 }
 
 export async function logoutEvolutionInstance(instanceName: string) {

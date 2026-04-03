@@ -41,6 +41,11 @@ export async function connectWhatsApp() {
     
     // Fetch QR Code
     const qrData = await getEvolutionQRCode(instanceName);
+    
+    if (qrData.alreadyConnected) {
+      return { success: true, alreadyConnected: true };
+    }
+    
     return { success: true, qr: qrData.base64 || qrData.qrcode };
   } catch (error: any) {
     return { success: false, error: error.message };

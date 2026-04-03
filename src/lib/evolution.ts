@@ -135,20 +135,71 @@ export async function ensureInstanceExists(instanceName: string) {
 }
 
 export async function getEvolutionQRCode(instanceName: string) {
-  for (let i = 0; i < 5; i++) {
-    const response = await evolutionFetch(`/instance/connect/${instanceName}`, {
-      method: 'GET'
-    });
+  console.log(`\n[Evolution API] Iniciando busca de QR Code para instância: ${instanceName}`);
+  const startTime = Date.now();
+  const maxAttempts = 30; // 30 segundos
+  const waitMs = 1000;
+  
+  let currentState = 'unknown';
+
+  for (let i = 0; i < maxAttempts; i++) {
+    console.log(`[Evolution API] Buscando QR Code... tentativa ${i + 1}/${maxAttempts}`);
     
-    if (response.base64 || response.qrcode) {
-      return response; // Achou o QR Code
+    try {
+      const response = await evolutionFetch(`/instance/connect/${instanceName}`, {
+        method: 'GET'
+      });
+      
+      console.log(`[Evolution API] Resposta bruta /connect (tentativa ${i+1}):`, JSON.stringify(response));
+      
+      // Evolution API can send the QR in response.base64 or response.qrcode
+      const qrData = response.base64 || response.qrcode?.base64 || response.qrcode;
+      
+      if (qrData) {
+        const timeElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`[Evolution API] QR Code encontrado na tentativa ${i + 1} após ${timeElapsed}s`);
+        return {
+          base64: qrData,
+          ...response
+        };
+      }
+      
+      // Se response.count === 0, a instância ainda não gerou o QR Code
+      if (response.instance?.state === 'open' || response.state === 'open') {
+        console.log(`[Evolution API] A instância já está conectada.`);
+        return { alreadyConnected: true, state: 'open' };
+      }
+      
+    } catch (err: any) {
+      console.error(`[Evolution API] Erro na tentativa ${i+1}: ${err.message}`);
     }
     
-    // Se response.count === 0, significa que a instância ainda está iniciando
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, waitMs));
   }
   
-  throw new Error("QR Code não pôde ser gerado a tempo. Tente novamente.");
+  const timeElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`[Evolution API] Conexão falhou/timeout após ${timeElapsed}s.`);
+
+  // Consulta o status final para o log e frontend
+  try {
+    const finalStatus = await getEvolutionInstanceStatus(instanceName);
+    console.log(`[Evolution API] Status final após timeout:`, JSON.stringify(finalStatus));
+    currentState = finalStatus?.instance?.state || finalStatus?.state || 'unknown';
+  } catch(e) {
+    console.error('[Evolution API] Falha ao recuperar status final:', e);
+  }
+
+  // Se a instância estiver "connecting" travada, podemos tentar fazer logout por segurança para "ressuscitar"
+  if (currentState === 'connecting' || currentState === 'close') {
+    console.log(`[Evolution API] Resetando instância (${currentState}) travada por segurança...`);
+    try {
+      await logoutEvolutionInstance(instanceName);
+    } catch (e: any) {
+      console.log(`[Evolution API] Erro ao tentar resetar a instância:`, e.message);
+    }
+  }
+
+  throw new Error(`A instância está no status '${currentState}', mas o QR Code não foi disponibilizado após ${timeElapsed} segundos. Retornando timeout por segurança. Tente se conectar novamente.`);
 }
 
 export async function logoutEvolutionInstance(instanceName: string) {

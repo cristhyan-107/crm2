@@ -9,6 +9,12 @@ export async function evolutionFetch(endpoint: string, options?: RequestInit) {
   // Ensure endpoint starts with a slash
   const urlPath = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
+  console.log(`\n--- EVOLUTION API CALL ---`);
+  console.log(`[REQUEST] ${options?.method || 'GET'} ${urlPath}`);
+  if (options?.body) {
+    console.log(`[PAYLOAD]`, options.body);
+  }
+
   const res = await fetch(`${BASE_URL}${urlPath}`, {
     ...options,
     headers: {
@@ -18,19 +24,32 @@ export async function evolutionFetch(endpoint: string, options?: RequestInit) {
     },
   });
 
+  const textBody = await res.text();
+  
+  console.log(`[RESPONSE STATUS] ${res.status} ${res.statusText}`);
+  console.log(`[RESPONSE BODY]`, textBody);
+
   if (!res.ok) {
-    // Tenta ler o erro do json, fallback para o status na exceção
     let errorMessage = `Evolution API error: ${res.status}`;
     try {
-      const errBody = await res.json();
-      errorMessage = errBody?.message || errBody?.error || errorMessage;
+      if (textBody) {
+        const errBody = JSON.parse(textBody);
+        if (errBody?.response?.message && Array.isArray(errBody.response.message)) {
+          errorMessage = errBody.response.message[0];
+        } else if (errBody?.response?.message) {
+          errorMessage = errBody.response.message;
+        } else {
+          errorMessage = errBody?.message || errBody?.error || errorMessage;
+        }
+      }
     } catch {
-      // Body não era json, ignora e lança o base errorMessage
+      // Ignore parse error
     }
+    console.error(`[EVOLUTION ERROR PARSED]`, errorMessage);
     throw new Error(errorMessage);
   }
 
-  return res.json();
+  return textBody ? JSON.parse(textBody) : {};
 }
 
 export async function createEvolutionInstance(instanceName: string) {

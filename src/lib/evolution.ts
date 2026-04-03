@@ -134,10 +134,10 @@ export async function ensureInstanceExists(instanceName: string) {
   return instanceName;
 }
 
-export async function getEvolutionQRCode(instanceName: string) {
-  console.log(`\n[Evolution API] Iniciando busca de QR Code para instância: ${instanceName}`);
+export async function getEvolutionQRCode(instanceName: string, retryCount = 0): Promise<any> {
+  console.log(`\n[Evolution API] Iniciando busca de QR Code para instância: ${instanceName} (Tentativa de Reset: ${retryCount})`);
   const startTime = Date.now();
-  const maxAttempts = 30; // 30 segundos
+  const maxAttempts = 20; // 20 segundos
   const waitMs = 1000;
   
   let currentState = 'unknown';
@@ -189,17 +189,52 @@ export async function getEvolutionQRCode(instanceName: string) {
     console.error('[Evolution API] Falha ao recuperar status final:', e);
   }
 
-  // Se a instância estiver "connecting" travada, podemos tentar fazer logout por segurança para "ressuscitar"
-  if (currentState === 'connecting' || currentState === 'close') {
-    console.log(`[Evolution API] Resetando instância (${currentState}) travada por segurança...`);
-    try {
-      await logoutEvolutionInstance(instanceName);
-    } catch (e: any) {
-      console.log(`[Evolution API] Erro ao tentar resetar a instância:`, e.message);
+  // Se a instância estiver "connecting" travada sem progresso e ainda não atingimos o limite de tentativas
+  if (currentState === 'connecting' || currentState === 'close' || currentState === 'unknown') {
+    if (retryCount < 1) { // Permite 1 reset/retry por chamada inicial (limita a no maximo 2 tentativas reais)
+      console.log(`[Evolution API] Instância detectada como inválida ou travada após timeout. Iniciando Auto-Reset (Tentativa ${retryCount + 1})...`);
+      await resetInstance(instanceName);
+      
+      // Tentar gerar QR novamente chamando a si mesma com retry = 1
+      return getEvolutionQRCode(instanceName, retryCount + 1);
+    } else {
+      console.log(`[Evolution API] Limite de tentativas de reset atingido. Abortando fluxo para a instância ${instanceName}.`);
     }
   }
 
-  throw new Error(`A instância está no status '${currentState}', mas o QR Code não foi disponibilizado após ${timeElapsed} segundos. Retornando timeout por segurança. Tente se conectar novamente.`);
+  throw new Error(`A instância travou no status '${currentState}' sem gerar o QR. Reset foi tentado sem sucesso. Total de aguardo: ${timeElapsed} segundos. Tente se conectar novamente em breve.`);
+}
+
+export async function deleteEvolutionInstance(instanceName: string) {
+  const response = await evolutionFetch(`/instance/delete/${instanceName}`, {
+    method: 'DELETE'
+  });
+  return response;
+}
+
+export async function resetInstance(instanceName: string) {
+  console.log(`\n[Evolution API] ---- HARD RESET START: ${instanceName} ----`);
+  // 1. DELETE /instance/delete/:instance
+  try {
+    console.log(`[Evolution API] Deletando a instância ${instanceName}...`);
+    await deleteEvolutionInstance(instanceName);
+  } catch(e: any) {
+    console.warn(`[Evolution API] Falha ao deletar a instância (pode não existir):`, e.message);
+  }
+  
+  // 2. Aguardar 2s
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // 3. POST /instance/create
+  console.log(`[Evolution API] Recriando a instância ${instanceName}...`);
+  try {
+    await createEvolutionInstance(instanceName);
+  } catch(e: any) {
+    console.error(`[Evolution API] Erro crítico ao recriar instância durante o Reset:`, e.message);
+  }
+  
+  // 4. GET /instance/connect é chamado indiretamente após o retorno (já que resetInstance é chamado antes de dar o novo getEvolutionQRCode loop)
+  console.log(`[Evolution API] ---- HARD RESET END: ${instanceName} ----\n`);
 }
 
 export async function logoutEvolutionInstance(instanceName: string) {

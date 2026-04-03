@@ -77,9 +77,37 @@ export async function getEvolutionInstanceStatus(instanceName: string) {
     });
     return response; // { instance: { state: "open" } }
   } catch (error: any) {
-    // Caso de timeout ou 404/ unauthorized fallback logic
-    return { state: 'unauthorized', status: 'DISCONNECTED' };
+    if (error.message && (error.message.includes('404') || error.message.includes('not exist'))) {
+      return { state: 'not_found', status: 'NOT_FOUND' };
+    }
+    // Caso de timeout ou unauthorized fallback logic
+    return { state: 'unauthorized', status: 'DISCONNECTED', error: error.message };
   }
+}
+
+export async function fetchInstances() {
+  return evolutionFetch('/instance/fetchInstances', {
+    method: 'GET'
+  });
+}
+
+export async function connectInstance(instanceName: string) {
+  return getEvolutionQRCode(instanceName);
+}
+
+export async function ensureInstanceExists(instanceName: string) {
+  const status = await getEvolutionInstanceStatus(instanceName);
+  
+  if (status?.status === 'NOT_FOUND' || status?.state === 'not_found' || (status?.error && status.error.includes('not exist'))) {
+    // A instância não existe, tentar criar automaticamente
+    try {
+      await createEvolutionInstance(instanceName);
+    } catch (error: any) {
+      throw new Error(`A instância do WhatsApp ainda não existe. Tentando criar automaticamente, mas falhou: ${error.message}`);
+    }
+  }
+  
+  return instanceName;
 }
 
 export async function getEvolutionQRCode(instanceName: string) {

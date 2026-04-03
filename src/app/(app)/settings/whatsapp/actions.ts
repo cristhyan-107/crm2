@@ -5,7 +5,8 @@ import {
   createEvolutionInstance, 
   getEvolutionInstanceStatus, 
   getEvolutionQRCode, 
-  logoutEvolutionInstance 
+  logoutEvolutionInstance,
+  ensureInstanceExists
 } from '@/lib/evolution';
 
 // Function to generate deterministic instance name for the user
@@ -35,17 +36,12 @@ export async function connectWhatsApp() {
   try {
     const instanceName = await getInstanceName();
     
-    // Check if it exists. If it fails, create.
-    const status = await getEvolutionInstanceStatus(instanceName).catch(() => null);
-    const state = status?.instance?.state || status?.state;
-    
-    if (!state || state === 'unauthorized' || state === 'UNAUTHORIZED') {
-      await createEvolutionInstance(instanceName);
-    }
+    // Ensure instance exists. If not, it will be automatically created.
+    await ensureInstanceExists(instanceName);
     
     // Fetch QR Code
     const qrData = await getEvolutionQRCode(instanceName);
-    return { success: true, qr: qrData.base64 };
+    return { success: true, qr: qrData.base64 || qrData.qrcode };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

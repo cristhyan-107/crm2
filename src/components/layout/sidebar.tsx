@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building2, Kanban, Calendar,
-  FileText, Settings, X, Smartphone
+  FileText, Settings, X, Smartphone, MessageCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Smartphone, LogOut, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { checkWhatsAppStatus, connectWhatsApp, disconnectWhatsApp } from './actions';
+import { ChatInterface } from '@/components/chat/chat-interface';
 import Image from 'next/image';
 
 export default function WhatsAppSettingsPage() {
@@ -77,63 +78,70 @@ export default function WhatsAppSettingsPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">WhatsApp (Evolution API)</h2>
-        <p className="text-sm text-gray-400 mt-1">Conecte seu número de WhatsApp para trocar mensagens diretamente do CRM.</p>
-      </div>
+    <div className={state === 'OPEN' ? "h-[calc(100vh-4rem)] flex flex-col -m-4 sm:-m-6 bg-[#060a14]" : "max-w-2xl mx-auto space-y-6"}>
+      {state !== 'OPEN' && (
+        <>
+          <div>
+            <h2 className="text-2xl font-bold text-white tracking-tight">WhatsApp (Evolution API)</h2>
+            <p className="text-sm text-gray-400 mt-1">Conecte seu número de WhatsApp para trocar mensagens diretamente do CRM.</p>
+          </div>
 
-      {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-400">{error}</p>
-        </div>
+          {error && (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+        </>
       )}
 
-      <div className="bg-[#080d18] border border-white/10 rounded-2xl p-6 sm:p-8">
-        {loading && state === 'LOADING' ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mb-4" />
-            <p className="text-sm text-gray-400">Verificando status de conexão...</p>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {/* Cabecalho de Status */}
-            <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 ${state === 'OPEN' ? 'bg-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'bg-gray-800'}`}>
-                 <Smartphone className={`w-8 h-8 ${state === 'OPEN' ? 'text-emerald-500' : 'text-gray-500'}`} />
-               </div>
-               <div className="flex-1">
-                 <h3 className="text-lg font-semibold text-white">Status da Conexão</h3>
-                 <div className="flex items-center gap-2 mt-1">
-                   <div className={`w-2.5 h-2.5 rounded-full ${state === 'OPEN' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                   <p className="text-sm text-gray-300">
-                     {state === 'OPEN' ? 'Conectado e Operacional' : 
-                      state === 'QR_READY' ? 'Aguardando Escaneamento...' : 
-                      'Desconectado'}
-                   </p>
-                 </div>
-               </div>
+      {state === 'OPEN' ? (
+        <div className="flex-1 flex flex-col h-full">
+           <div className="flex items-center justify-between px-6 py-3 bg-[#080d18] border-b border-white/10 shrink-0">
+             <div className="flex items-center gap-2">
+                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                 <span className="text-sm font-medium text-emerald-400">WhatsApp Conectado</span>
+             </div>
+             <button 
+               onClick={handleDisconnect}
+               disabled={loading}
+               className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-xs font-medium transition-colors border border-red-500/20"
+             >
+               <LogOut className="w-3.5 h-3.5" />
+               Desconectar
+             </button>
+           </div>
+           <div className="flex-1 overflow-hidden relative">
+             <ChatInterface />
+           </div>
+        </div>
+      ) : (
+        <div className="bg-[#080d18] border border-white/10 rounded-2xl p-6 sm:p-8">
+          {loading && state === 'LOADING' ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mb-4" />
+              <p className="text-sm text-gray-400">Verificando status de conexão...</p>
             </div>
-
-            {/* Ações e Visualização */}
-            <div className="flex flex-col items-center pt-2">
-               {state === 'OPEN' ? (
-                 <div className="text-center space-y-6 w-full">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 mb-2">
-                       <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-                    </div>
-                    <p className="text-sm text-gray-300">Seu WhatsApp está pronto para enviar e receber mensagens.</p>
-                    <button 
-                      onClick={handleDisconnect}
-                      disabled={loading}
-                      className="mt-4 flex items-center justify-center gap-2 px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl font-medium transition-colors w-full sm:w-auto mx-auto border border-red-500/20"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Desconectar Dispositivo
-                    </button>
+          ) : (
+            <div className="space-y-8">
+              {/* Cabecalho de Status */}
+              <div className="flex items-center gap-4 border-b border-white/10 pb-6">
+                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 bg-gray-800`}>
+                   <Smartphone className={`w-8 h-8 text-gray-500`} />
                  </div>
-               ) : (
+                 <div className="flex-1">
+                   <h3 className="text-lg font-semibold text-white">Status da Conexão</h3>
+                   <div className="flex items-center gap-2 mt-1">
+                     <div className={`w-2.5 h-2.5 rounded-full bg-amber-500`} />
+                     <p className="text-sm text-gray-300">
+                       {state === 'QR_READY' ? 'Aguardando Escaneamento...' : 'Desconectado'}
+                     </p>
+                   </div>
+                 </div>
+              </div>
+
+              {/* Ações e Visualização */}
+              <div className="flex flex-col items-center pt-2">
                  <div className="text-center space-y-6 w-full">
                     {qrCode ? (
                       <div className="space-y-6 flex flex-col items-center animate-fade-in">
@@ -176,11 +184,11 @@ export default function WhatsAppSettingsPage() {
                       </div>
                     )}
                  </div>
-               )}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

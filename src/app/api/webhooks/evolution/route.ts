@@ -66,10 +66,21 @@ export async function POST(req: Request) {
 
       const lead = leads && leads.length > 0 ? leads[0] : null;
 
+      // Extract user_id from instance_name (e.g., crm_b867c21684c34ffeb09503fb409d6fbb)
+      let instanceUserId = null;
+      if (instance && instance.startsWith('crm_')) {
+        const stripped = instance.replace('crm_', '');
+        if (stripped.length === 32) {
+          instanceUserId = `${stripped.slice(0, 8)}-${stripped.slice(8, 12)}-${stripped.slice(12, 16)}-${stripped.slice(16, 20)}-${stripped.slice(20)}`;
+        }
+      }
+
+      const finalUserId = lead?.user_id || instanceUserId;
+
       // 5. Inbound/Outbound Insert (Even if lead is missing, store message for orphan logging)
       const { error: insertError } = await supabase.from('whatsapp_messages').insert({
         message_id: messageId,
-        user_id: lead?.user_id || null, // Might be null if it's an unknown contact
+        user_id: finalUserId,
         lead_id: lead?.id || null,
         instance_name: instance,
         provider: 'evolution',

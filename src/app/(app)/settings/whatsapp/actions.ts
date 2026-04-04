@@ -2,11 +2,9 @@
 
 import { createServerSupabase } from '@/lib/supabase/server';
 import { 
-  createEvolutionInstance, 
   getEvolutionInstanceStatus, 
   getEvolutionQRCode, 
-  logoutEvolutionInstance,
-  ensureInstanceExists
+  logoutEvolutionInstance
 } from '@/lib/evolution';
 
 // Function to generate deterministic instance name for the user
@@ -36,10 +34,7 @@ export async function connectWhatsApp() {
   try {
     const instanceName = await getInstanceName();
     
-    // Ensure instance exists. If not, it will be automatically created.
-    await ensureInstanceExists(instanceName);
-    
-    // Fetch QR Code
+    // getEvolutionQRCode handles: check existing → delete if stuck → create → get QR
     const qrData = await getEvolutionQRCode(instanceName);
     
     if (qrData.alreadyConnected) {
@@ -60,4 +55,88 @@ export async function disconnectWhatsApp() {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+}
+
+import { sendEvolutionMessage } from '@/lib/evolution';
+
+export async function getInboxContacts() {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  // Pega as últimas mensagens por número
+  const { data, error } = await supabase
+    .from('whatsapp_messages')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  // Group by contact phone
+  const inboxMap = new Map();
+
+  for (const msg of data) {
+    const isOutbound = msg.direction === 'outbound';
+    // If outbound, the contact phone is in 'to_number', if inbound it's in 'from_number'
+    const phone = isOutbound ? msg.to_number : msg.from_number;
+    
+    if (!inboxMap.has(phone)) {
+      inboxMap.set(phone, {
+        phone,
+        name: msg.contact_name || phone,
+        lastMessage: msg.content,
+        timestamp: msg.created_at,
+        unreadCount: (!isOutbound && msg.status !== 'read') ? 1 : 0,
+        isLead: !!msg.lead_id
+      });
+    } else {
+      const existing = inboxMap.get(phone);
+      if (!isOutbound && msg.status !== 'read') {
+        existing.unreadCount += 1;
+      }
+    }
+  }
+
+  return Array.from(inboxMap.values());
+}
+
+export async function getChatHistory(contactNumber: string) {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data } = await supabase
+    .from('whatsapp_messages')
+    .select('*')
+    .eq('user_id', user.id)
+    .or(`from_number.eq.${contactNumber},to_number.eq.${contactNumber}`)
+    .order('created_at', { ascending: true });
+
+  return data;
+}
+
+export async function markChatAsRead(contactNumber: string) {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from('whatsapp_messages')
+    .update({ status: 'read' })
+    .eq('user_id', user.id)
+    .eq('from_number', contactNumber)
+    .neq('status', 'read');
+}
+
+export async function sendChatMessage(contactNumber: string, content: string) {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Unauthorized');
+  
+  const instanceName = `crm_${user.id.replace(/-/g, '')}`;
+
+  await sendEvolutionMessage(instanceName, contactNumber, content);
+  
+  return { success: true };
 }

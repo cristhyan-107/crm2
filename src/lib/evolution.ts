@@ -184,19 +184,22 @@ export async function updateEvolutionWebhook(instanceName: string) {
   return evolutionFetch(`/webhook/set/${instanceName}`, {
     method: 'POST',
     body: JSON.stringify({
-      url: `${appUrl}/api/webhooks/evolution`,
-      byEvents: false,
-      base64: false,
-      events: [
-        'MESSAGES_UPSERT',
-        'MESSAGES_UPDATE',
-        'MESSAGES_DELETE',
-        'SEND_MESSAGE',
-        'CHATS_UPSERT',
-        'CHATS_UPDATE',
-        'CONTACTS_UPSERT',
-        'CONNECTION_UPDATE',
-      ],
+      webhook: {
+        url: `${appUrl}/api/webhooks/evolution`,
+        enabled: true,
+        webhookByEvents: false,
+        webhookBase64: false,
+        events: [
+          'MESSAGES_UPSERT',
+          'MESSAGES_UPDATE',
+          'MESSAGES_DELETE',
+          'SEND_MESSAGE',
+          'CHATS_UPSERT',
+          'CHATS_UPDATE',
+          'CONTACTS_UPSERT',
+          'CONNECTION_UPDATE',
+        ],
+      },
     }),
   });
 }
@@ -226,10 +229,15 @@ export interface EvolutionChat {
 
 export async function getEvolutionChats(instanceName: string): Promise<EvolutionChat[]> {
   try {
+    // 55s timeout - stays within Vercel's 60s function limit
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 55000);
+
     const res = await evolutionFetch(`/chat/findChats/${instanceName}`, {
       method: 'POST',
       body: JSON.stringify({}),
-    });
+      signal: controller.signal as any,
+    }).finally(() => clearTimeout(timeout));
 
     const chats: EvolutionChat[] = Array.isArray(res) ? res : [];
 

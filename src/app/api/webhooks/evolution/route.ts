@@ -29,6 +29,21 @@ export async function POST(req: Request) {
     }
 
     const { event, instance, data } = payload;
+    
+    // [LOG TEMPORÁRIO 1] - Recebimento do Webhook
+    console.log(`\n=== [WEBHOOK TEMPORÁRIO] Evento Recebido ===`);
+    console.log(`Timestamp: ${new Date().toISOString()}`);
+    console.log(`Evento: ${event}`);
+    console.log(`Instância: ${instance}`);
+    // Log do ID da mensagem ou um pedaço pequeno se não tiver ID, sem expor tudo
+    if (event === 'MESSAGES_UPSERT' || event === 'SEND_MESSAGE') {
+       const msgData = Array.isArray(data?.messages) ? data.messages[0] : (data?.key ? data : (Array.isArray(data) ? data[0] : {}));
+       console.log(`Message ID: ${msgData?.key?.id}`);
+       console.log(`RemoteJid: ${msgData?.key?.remoteJid}`);
+       console.log(`FromMe: ${msgData?.key?.fromMe}`);
+    }
+    console.log(`===========================================\n`);
+
     const supabase = createAdminClient();
 
     // Descobrir user_id a partir do instance_name (crm_{userId_sem_hifens})
@@ -135,6 +150,7 @@ export async function POST(req: Request) {
             last_message_at: lastAt,
             unread_count: chat.unreadCount || 0,
             updated_at: new Date().toISOString(),
+            // pipeline_stage is intentionally OMITTED here so manual moves are preserved
           },
           { onConflict: 'instance_name,remote_jid', ignoreDuplicates: false }
         );
@@ -234,7 +250,7 @@ async function processMessage(
     : new Date().toISOString();
 
   // Inserir mensagem
-  await supabase.from('whatsapp_messages').insert({
+  const { error: insertError } = await supabase.from('whatsapp_messages').insert({
     user_id: userId,
     lead_id: lead?.id || null,
     instance_name: instance,
@@ -257,6 +273,12 @@ async function processMessage(
     contact_name: pushName,
   });
 
+  if (insertError) {
+    console.error(`[WEBHOOK TEMPORÁRIO] ERRO ao salvar mensagem no Supabase:`, insertError.message);
+  } else {
+    console.log(`[WEBHOOK TEMPORÁRIO] Mensagem ${messageKey} salva com sucesso no Supabase. O Supabase Realtime deve emitir um INSERT agora.`);
+  }
+
   // Atualizar cache de chats
   if (userId) {
     await supabase.from('whatsapp_chats').upsert(
@@ -269,6 +291,7 @@ async function processMessage(
         last_message_at: sentAt,
         unread_count: fromMe ? 0 : 1, // Seremos mais precisos com CHATS_UPDATE
         updated_at: new Date().toISOString(),
+        // pipeline_stage is intentionally OMITTED here so manual moves are preserved
       },
       { onConflict: 'instance_name,remote_jid', ignoreDuplicates: false }
     );

@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Send,
   Search,
-  User as UserIcon,
   Check,
   CheckCheck,
   Clock,
@@ -14,6 +13,8 @@ import {
   Smartphone,
   WifiOff,
   RotateCcw,
+  Plus,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -21,6 +22,7 @@ import {
   getChatHistory,
   markChatAsRead,
   sendChatMessage,
+  startNewConversation,
 } from '@/app/(app)/settings/whatsapp/actions';
 import { createClient } from '@/lib/supabase/client';
 
@@ -76,13 +78,21 @@ interface Message {
   created_at: string;
   push_name?: string;
   remote_jid?: string;
+  _error?: string;
 }
+
 
 // ============================================================
 // ChatInterface Component
 // ============================================================
 
-export function ChatInterface({ instanceName }: { instanceName?: string }) {
+export function ChatInterface({
+  instanceName,
+  initialJid,
+}: {
+  instanceName?: string;
+  initialJid?: string;
+}) {
   const [inbox, setInbox] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -93,8 +103,16 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOnline, setIsOnline] = useState(true);
 
+  // Modal nova conversa
+  const [showNewConv, setShowNewConv] = useState(false);
+  const [newConvPhone, setNewConvPhone] = useState('');
+  const [newConvLoading, setNewConvLoading] = useState(false);
+  const [newConvError, setNewConvError] = useState('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Rastreia se o initialJid já foi tratado para não re-selecionar em updates do inbox
+  const initialJidHandled = useRef(false);
   const supabase = createClient();
 
   // ============================================================
@@ -114,6 +132,37 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
   useEffect(() => {
     loadInbox();
   }, [loadInbox]);
+
+  // ============================================================
+  // Auto-selecionar conversa via initialJid (vindo do Pipeline)
+  // ============================================================
+
+  useEffect(() => {
+    if (!initialJid || initialJidHandled.current) return;
+    if (isLoadingInbox) return; // aguardar inbox carregar
+
+    const contact = inbox.find((c) => c.remoteJid === initialJid);
+    if (contact) {
+      setSelectedContact(contact);
+      initialJidHandled.current = true;
+    } else if (!isLoadingInbox) {
+      // Contato não está no inbox (nova conversa ou não sincronizada)
+      // Criar contato sintético para abrir a janela de chat
+      const phone = initialJid.split('@')[0];
+      setSelectedContact({
+        id: `synthetic_${initialJid}`,
+        phone,
+        remoteJid: initialJid,
+        name: phone,
+        lastMessage: '',
+        timestamp: new Date().toISOString(),
+        unreadCount: 0,
+        profilePicUrl: null,
+        isLead: false,
+      });
+      initialJidHandled.current = true;
+    }
+  }, [inbox, initialJid, isLoadingInbox]);
 
   // ============================================================
   // Supabase Realtime — escutar novas mensagens e chats
@@ -137,7 +186,7 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
               content: newMsg.content || '',
               direction: newMsg.from_me ? 'outbound' : 'inbound',
               status: newMsg.status || 'delivered',
-              created_at: newMsg.created_at,
+              created_at: newMsg.sent_at || newMsg.created_at,
               push_name: newMsg.push_name,
               remote_jid: newMsg.remote_jid,
             };
@@ -252,18 +301,92 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     );
 
+    // Helper: garante string legível independente do formato do erro
+    function normalizeError(e: unknown): string {
+      if (!e) return 'Erro desconhecido no envio';
+      if (typeof e === 'string') return e;
+      if (Array.isArray(e)) return e.join(' | ');
+      if (e instanceof Error) return e.message || 'Erro desconhecido';
+      if (typeof e === 'object') {
+        const o = e as Record<string, unknown>;
+        return (
+          (typeof o.message === 'string' ? o.message : '') ||
+          (typeof o.error === 'string' ? o.error : '') ||
+          JSON.stringify(e)
+        );
+      }
+      return String(e);
+    }
+
     try {
-      await sendChatMessage(selectedContact.remoteJid, contentToSend);
+      const result = await sendChatMessage(selectedContact.remoteJid, contentToSend);
+
+      if (!result.success) {
+        const errMsg = normalizeError(result.error);
+        console.error('[Chat] sendChatMessage failed:', { raw: result.error, normalized: errMsg });
+        if ((result as any).details) {
+          console.debug('[Chat] sendChatMessage details:', (result as any).details);
+        }
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId ? { ...m, status: 'failed', _error: errMsg } : m
+          )
+        );
+
+      } else {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, status: 'sent' } : m))
+        );
+      }
+    } catch (err: unknown) {
+      const errMsg = normalizeError(err);
+      console.error('[Chat] sendChatMessage exception:', { raw: err, normalized: errMsg });
       setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...m, status: 'sent' } : m))
-      );
-    } catch (err: any) {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
+        prev.map((m) =>
+          m.id === tempId ? { ...m, status: 'failed', _error: errMsg } : m
+        )
       );
     } finally {
       setIsSending(false);
     }
+
+  };
+
+
+  // ============================================================
+  // Nova conversa — submit do modal
+  // ============================================================
+
+  const handleNewConversation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newConvPhone.trim() || newConvLoading) return;
+    setNewConvLoading(true);
+    setNewConvError('');
+
+    const result = await startNewConversation(newConvPhone.trim());
+
+    if (result.success && result.remoteJid) {
+      const phone = result.remoteJid.split('@')[0];
+      const syntheticContact: Contact = {
+        id: `new_${result.remoteJid}`,
+        phone,
+        remoteJid: result.remoteJid,
+        name: newConvPhone.trim(),
+        lastMessage: '',
+        timestamp: new Date().toISOString(),
+        unreadCount: 0,
+        profilePicUrl: null,
+        isLead: false,
+      };
+      setSelectedContact(syntheticContact);
+      setNewConvPhone('');
+      setShowNewConv(false);
+      loadInbox(); // atualizar lista (novo contato pode já estar lá)
+    } else {
+      setNewConvError(result.error || 'Erro ao iniciar conversa');
+    }
+
+    setNewConvLoading(false);
   };
 
   const filteredInbox = inbox.filter(
@@ -297,6 +420,14 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
                 <WifiOff className="w-4 h-4 text-amber-500" />
               </span>
             )}
+            {/* Botão nova conversa */}
+            <button
+              onClick={() => { setShowNewConv(true); setNewConvError(''); setNewConvPhone(''); }}
+              className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/[0.05] transition-colors"
+              title="Nova conversa"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
             <button
               onClick={loadInbox}
               disabled={isLoadingInbox}
@@ -307,6 +438,49 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
             </button>
           </div>
         </div>
+
+        {/* Modal nova conversa (inline, simples) */}
+        {showNewConv && (
+          <div className="p-3 border-b border-white/[0.06] bg-[#0a1020] animate-fade-in">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-gray-300">Nova conversa</span>
+              <button
+                onClick={() => setShowNewConv(false)}
+                className="text-gray-600 hover:text-gray-400 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <form onSubmit={handleNewConversation} className="flex gap-2">
+              <input
+                type="tel"
+                value={newConvPhone}
+                onChange={(e) => setNewConvPhone(e.target.value)}
+                placeholder="Ex: 11999998888"
+                autoFocus
+                className="flex-1 h-8 px-3 bg-white/[0.03] border border-white/[0.08] rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={!newConvPhone.trim() || newConvLoading}
+                className="px-3 h-8 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
+              >
+                {newConvLoading ? (
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Send className="w-3 h-3" />
+                )}
+                Abrir
+              </button>
+            </form>
+            {newConvError && (
+              <p className="text-xs text-red-400 mt-1.5">{newConvError}</p>
+            )}
+            <p className="text-[10px] text-gray-600 mt-1.5">
+              Digite o número sem formatação. Código BR (55) é adicionado automaticamente.
+            </p>
+          </div>
+        )}
 
         {/* Search */}
         <div className="p-3 flex-shrink-0 border-b border-white/[0.06]">
@@ -335,7 +509,7 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
               <div>
                 <p className="text-gray-400 font-medium text-sm">Nenhuma conversa</p>
                 <p className="text-gray-600 text-xs mt-1">
-                  {searchQuery ? 'Tente outro termo' : 'Sincronize para carregar conversas'}
+                  {searchQuery ? 'Tente outro termo' : 'Sincronize ou inicie uma nova conversa'}
                 </p>
               </div>
             </div>
@@ -424,7 +598,7 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
             </div>
             <h3 className="text-base font-medium text-gray-400 mb-1">Selecione uma conversa</h3>
             <p className="max-w-xs text-sm text-gray-600">
-              Clique em uma conversa à esquerda para ver o histórico de mensagens.
+              Clique em uma conversa à esquerda ou inicie uma nova pelo botão +.
             </p>
           </div>
         ) : (
@@ -500,7 +674,9 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
                             className={cn(
                               'relative max-w-[80%] sm:max-w-[65%] px-3.5 py-2 text-[14px] leading-relaxed shadow-sm',
                               isMe
-                                ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
+                                ? msg.status === 'failed'
+                                  ? 'bg-red-900/40 border border-red-500/30 text-red-100 rounded-2xl rounded-br-sm'
+                                  : 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
                                 : 'bg-[#161c28] border border-white/[0.04] text-gray-100 rounded-2xl rounded-bl-sm'
                             )}
                           >
@@ -525,7 +701,12 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
                                   ) : msg.status === 'sending' ? (
                                     <Clock className="w-3 h-3 opacity-60" />
                                   ) : msg.status === 'failed' ? (
-                                    <span className="text-red-400 text-xs font-bold">!</span>
+                                    <span
+                                      className="text-red-400 text-xs font-bold cursor-help"
+                                      title={msg._error || 'Falha no envio. Verifique conexão com o WhatsApp.'}
+                                    >
+                                      ✕ Falha
+                                    </span>
                                   ) : (
                                     <Check className="w-3 h-3 opacity-40" />
                                   )}
@@ -533,6 +714,7 @@ export function ChatInterface({ instanceName }: { instanceName?: string }) {
                               )}
                             </div>
                           </div>
+
                         </div>
                       </div>
                     );

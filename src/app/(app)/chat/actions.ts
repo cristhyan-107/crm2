@@ -8,4 +8,5 @@ export {
   getChatHistory,
   markChatAsRead,
   sendChatMessage,
+  startNewConversation,
 } from '@/app/(app)/settings/whatsapp/actions';

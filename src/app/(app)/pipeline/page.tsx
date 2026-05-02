@@ -18,11 +18,19 @@ export default async function PipelinePage() {
     .select('id, title')
     .order('title');
 
+  // Fetch WhatsApp conversations (each row = one conversation card)
+  const { data: conversations } = await supabase
+    .from('whatsapp_chats')
+    .select('id, remote_jid, push_name, last_message, last_message_at, pipeline_stage, unread_count, profile_pic_url')
+    .eq('is_group', false)
+    .order('last_message_at', { ascending: false });
+
   return (
     <div className="max-w-screen-2xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
       <PipelineBoard 
         initialLeads={leads || []} 
-        properties={properties || []} 
+        properties={properties || []}
+        initialConversations={conversations || []}
       />
     </div>
   );

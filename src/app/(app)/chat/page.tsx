@@ -7,10 +7,16 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default function ChatPage() {
+// Next.js 15+: searchParams is a Promise
+export default async function ChatPage(props: {
+  searchParams: Promise<{ jid?: string }>;
+}) {
+  const searchParams = await props.searchParams;
+  const initialJid = searchParams?.jid;
+
   return (
     <div className="h-[calc(100vh-6rem)] -m-4 sm:-m-6 flex overflow-hidden bg-[#060a14]">
-      <ChatInterface />
+      <ChatInterface initialJid={initialJid} />
     </div>
   );
 }

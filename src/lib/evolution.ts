@@ -20,6 +20,16 @@ export async function evolutionFetch(endpoint: string, options?: RequestInit) {
 
   const finalUrl = buildUrl(endpoint);
 
+  // Helper: garante que qualquer valor vira string legível
+  function toStr(v: unknown): string {
+    if (typeof v === 'string') return v;
+    if (Array.isArray(v)) return v.map(toStr).join(' | ');
+    if (v && typeof v === 'object') return JSON.stringify(v);
+    return String(v ?? '');
+  }
+
+  console.log(`[evolutionFetch] ${options?.method || 'GET'} ${finalUrl}`);
+
   const res = await fetch(finalUrl, {
     ...options,
     headers: {
@@ -31,27 +41,35 @@ export async function evolutionFetch(endpoint: string, options?: RequestInit) {
 
   const textBody = await res.text();
 
+  console.log(`[evolutionFetch] HTTP ${res.status} — body: ${textBody.substring(0, 300)}`);
+
   if (!res.ok) {
-    let errorMessage = `Evolution API error: ${res.status}`;
+    let errorMessage = `Evolution API error: HTTP ${res.status}`;
     try {
       if (textBody) {
         const errBody = JSON.parse(textBody);
-        if (errBody?.response?.message && Array.isArray(errBody.response.message)) {
-          errorMessage = errBody.response.message[0];
-        } else if (errBody?.response?.message) {
-          errorMessage = errBody.response.message;
+        // Formato Evolution v2: { response: { message: ["..."] } }
+        if (errBody?.response?.message) {
+          errorMessage = toStr(errBody.response.message);
+        // Formato Evolution v2 alternativo: { message: "..." | [...] }
+        } else if (errBody?.message) {
+          errorMessage = toStr(errBody.message);
+        } else if (errBody?.error) {
+          errorMessage = toStr(errBody.error);
         } else {
-          errorMessage = errBody?.message || errBody?.error || errorMessage;
+          errorMessage = textBody.substring(0, 200);
         }
       }
     } catch {
-      // Ignore parse error
+      errorMessage = `HTTP ${res.status}: ${textBody.substring(0, 200)}`;
     }
+    console.error(`[evolutionFetch] ERRO: ${errorMessage}`);
     throw new Error(errorMessage);
   }
 
   return textBody ? JSON.parse(textBody) : {};
 }
+
 
 // ============================================================
 // Instance management
@@ -313,19 +331,35 @@ export async function sendEvolutionMessage(
   number: string,
   text: string
 ) {
+  const payload = {
+    number,
+    // Evolution v2+: campo 'text' direto
+    text,
+    // Evolution v1 / legacy: campo 'textMessage' como wrapper
+    textMessage: { text },
+    options: {
+      delay: 1200,
+      presence: 'composing',
+      linkPreview: false,
+    },
+  };
+
+  // [LOG TEMPORÁRIO] 
+  console.log(`\n=== [EVOLUTION FETCH TEMPORÁRIO] ===`);
+  console.log(`Endpoint: /message/sendText/${instanceName}`);
+  console.log(`Payload enviado (seguro):`, {
+      number: payload.number,
+      text_length: payload.text.length,
+      has_textMessage: !!payload.textMessage?.text
+  });
+  console.log(`====================================\n`);
+
   return evolutionFetch(`/message/sendText/${instanceName}`, {
     method: 'POST',
-    body: JSON.stringify({
-      number,
-      options: {
-        delay: 1200,
-        presence: 'composing',
-        linkPreview: false,
-      },
-      textMessage: { text },
-    }),
+    body: JSON.stringify(payload),
   });
 }
+
 
 // ============================================================
 // Helpers
